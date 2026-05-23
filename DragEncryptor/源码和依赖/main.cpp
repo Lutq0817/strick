@@ -12,9 +12,15 @@ class SimpleEncryptor {
 private:
     vector<unsigned char> key;
     
+    bool endsWith(const string& str, const string& suffix) {
+        if (str.length() < suffix.length()) return false;
+        return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
+    }
+    
     void loadOrCreateKey() {
         string keyFile = "encryptor.key";
         ifstream in(keyFile, ios::binary);
+        
         if (in.good()) {
             key.assign(istreambuf_iterator<char>(in), istreambuf_iterator<char>());
             cout << "Loaded key from: " << keyFile << endl;
@@ -27,13 +33,9 @@ private:
         }
     }
     
-    bool endsWith(const string& str, const string& suffix) {
-        if (str.length() < suffix.length()) return false;
-        return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
-    }
-    
     bool encryptFile(const string& inputPath) {
         string outputPath = inputPath + ".enc";
+        
         ifstream in(inputPath, ios::binary);
         if (!in) {
             cerr << "Cannot open: " << inputPath << endl;
@@ -89,6 +91,78 @@ private:
         return true;
     }
     
+    bool decryptFile(const string& inputPath) {
+        if (!endsWith(inputPath, ".enc")) {
+            cerr << "Not a .enc file: " << inputPath << endl;
+            return false;
+        }
+        
+        string outputPath = inputPath.substr(0, inputPath.length() - 4);
+        
+        ifstream in(inputPath, ios::binary);
+        if (!in) {
+            cerr << "Cannot open: " << inputPath << endl;
+            return false;
+        }
+        
+        in.seekg(0, ios::end);
+        size_t fileSize = in.tellg();
+        in.seekg(0, ios::beg);
+        
+        if (fileSize < 28) {
+            cerr << "File too small: " << inputPath << endl;
+            return false;
+        }
+        
+        vector<unsigned char> encrypted(fileSize);
+        in.read(reinterpret_cast<char*>(encrypted.data()), fileSize);
+        in.close();
+        
+        cout << "Decrypting: " << inputPath << " (" << fileSize << " bytes)" << endl;
+        
+        vector<unsigned char> iv(encrypted.begin(), encrypted.begin() + 12);
+        vector<unsigned char> tag(encrypted.end() - 16, encrypted.end());
+        vector<unsigned char> ciphertext(encrypted.begin() + 12, encrypted.end() - 16);
+        
+        EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+        vector<unsigned char> plaintext(ciphertext.size());
+        
+        int len = 0, plaintext_len = 0;
+        
+        if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL) != 1 ||
+            EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, 12, NULL) != 1 ||
+            EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()) != 1) {
+            cerr << "Decryption init failed" << endl;
+            EVP_CIPHER_CTX_free(ctx);
+            return false;
+        }
+        
+        EVP_DecryptUpdate(ctx, plaintext.data(), &len, ciphertext.data(), ciphertext.size());
+        plaintext_len = len;
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, tag.data());
+        
+        int ret = EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len);
+        EVP_CIPHER_CTX_free(ctx);
+        
+        if (ret != 1) {
+            cerr << "  ERROR: Decryption failed! Wrong key or corrupted file." << endl;
+            return false;
+        }
+        plaintext_len += len;
+        
+        ofstream out(outputPath, ios::binary);
+        if (!out) {
+            cerr << "Cannot create: " << outputPath << endl;
+            return false;
+        }
+        
+        out.write(reinterpret_cast<char*>(plaintext.data()), plaintext_len);
+        out.close();
+        
+        cout << "  -> Restored as: " << outputPath << endl;
+        return true;
+    }
+    
 public:
     SimpleEncryptor() {
         OpenSSL_add_all_algorithms();
@@ -103,8 +177,7 @@ public:
     
     void processFile(const string& filepath) {
         if (endsWith(filepath, ".enc")) {
-            // ????????????????????
-            cout << "This is an encrypted file: " << filepath << endl;
+            decryptFile(filepath);
         } else {
             encryptFile(filepath);
         }
@@ -119,8 +192,9 @@ public:
 
 int main(int argc, char* argv[]) {
     cout << "=== Simple Drag & Drop Encryptor ===" << endl;
-    cout << "Drag files onto this .exe to encrypt" << endl;
-    cout << "Encrypted files will have .enc suffix" << endl;
+    cout << "Drag files onto this .exe to encrypt/decrypt" << endl;
+    cout << "  - Normal file -> encrypt to .enc" << endl;
+    cout << "  - .enc file -> decrypt to original" << endl;
     cout << endl;
     
     SimpleEncryptor encryptor;
