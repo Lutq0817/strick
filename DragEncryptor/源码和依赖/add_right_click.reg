@@ -1,15 +1,21 @@
 Windows Registry Editor Version 5.00
 
+; ??????
 [HKEY_CLASSES_ROOT\*\shell\EncryptWithDragEncryptor]
-@="? DragEncryptor ??"
-"Icon"="\"C:\\Program Files\\DragEncryptor\\DragEncryptor.exe\""
+@="Encrypt with DragEncryptor"
+"Icon"="C:\\Program Files\\DragEncryptor\\DragEncryptor.exe"
 
 [HKEY_CLASSES_ROOT\*\shell\EncryptWithDragEncryptor\command]
 @="\"C:\\Program Files\\DragEncryptor\\DragEncryptor.exe\" \"%1\""
 
+; ??????
 [HKEY_CLASSES_ROOT\*\shell\DecryptWithDragEncryptor]
-@="? DragEncryptor ??"
-"Icon"="\"C:\\Program Files\\DragEncryptor\\DragEncryptor.exe\""
+@="Decrypt with DragEncryptor"
+"Icon"="C:\\Program Files\\DragEncryptor\\DragEncryptor.exe"
 
 [HKEY_CLASSES_ROOT\*\shell\DecryptWithDragEncryptor\command]
 @="\"C:\\Program Files\\DragEncryptor\\DragEncryptor.exe\" \"%1\""
+
+; ?? Win11 ?????????????????
+[HKEY_CURRENT_USER\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32]
+@=""
